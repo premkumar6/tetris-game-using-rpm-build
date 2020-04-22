@@ -1,97 +1,80 @@
-include config.mk
+include ../config.mk
+include src-conf.mk
 
-PROGNAME = tetris$(EXE)
+OBJS = main.o cmdline.o cfgfile.o options.o hiscore.o lang.o \
+       timer.o $(pctimer_obj) focus.o
+#OBJS += ../icon.o
 
-# Uncomment to change the default.  (Only used in Unix-like systems.)
-#HISCORE_FILENAME = /var/games/vitetris-hiscores
+tetris: $(OBJS) libs ../config.mk
+	$(CC) -o tetris $(OBJS) game.a $(menuext_lib) menu.a $(netw_lib) input.a draw.a textgfx.a $(LDFLAGS) $(LDLIBS)
 
-INSTALL = install -oroot -groot
+main.o: main.c timer.h cfgfile.h options.h lang.h focus.h \
+	textgfx/textgfx.h input/input.h game/tetris.h game/game.h \
+	menu/menuext.h netw/sock.h config.h src-conf.mk
+	$(CC) $(CCFLAGS) -I. $(DTWOPLAYER) $(DSOCKET) $(DINET) $(DTTY_SOCKET) $(DNO_MENU) $(DTERM_RESIZING) $(DXLIB) $(DALLEGRO) -c main.c
 
-default: build
-	@echo Done.
-	@echo 'Now run ./$(PROGNAME) (or make install)'
+#cmdline.o: cmdline-empty.c
+#	$(CC) $(CCFLAGS) -c -ocmdline.o cmdline-empty.c 
 
-$(PROGNAME):
-	$(MAKE) build
+cmdline.o: cmdline.c version.h config.h config2.h options.h cfgfile.h \
+	   lang.h game/game.h textgfx/textgfx.h src-conf.mk
+	$(CC) $(CCFLAGS) -I. $(DTWOPLAYER) $(DJOYSTICK) $(DCURSES) $(DALLEGRO) $(DSOCKET) $(DINET) $(DTTY_SOCKET) $(DNO_MENU) $(DNO_BLOCKSTYLES) $(DHISCORE_FILENAME) -c cmdline.c
 
-build: src/src-conf.mk
-	cd src; $(MAKE) tetris
-	mv -f src/tetris$(EXE) $(PROGNAME)
-	@echo stripping symbols to reduce program size:
-	-strip --strip-all $(PROGNAME)
+cfgfile.o: cfgfile.c cfgfile.h options.h hiscore.h input/input.h \
+	   input/keyboard.h input/joystick.h draw/draw.h src-conf.mk
+	$(CC) $(CCFLAGS) -I. $(DTWOPLAYER) $(DJOYSTICK) $(DCURSES) $(DALLEGRO) -c cfgfile.c 
 
-gameserver: src/netw/gameserver.c
-	cd src/netw; $(MAKE) gameserver
-	mv -f src/netw/gameserver .
+options.o: options.c options.h
 
-src/src-conf.mk: config.mk Makefile src-conf.sh
-	@echo generating $@
-	./src-conf.sh '$(CC)' '$(CFLAGS)' '$(CPPFLAGS)'
-	./src-conf.sh def TWOPLAYER $(TWOPLAYER)
-	./src-conf.sh obj tetris2p $(TWOPLAYER)
-	./src-conf.sh def JOYSTICK $(JOYSTICK)
-	./src-conf.sh obj joylinux $(JOYSTICK)
-	./src-conf.sh obj select $(UNIX)
-	./src-conf.sh set BACKEND curses $(CURSES)
-	./src-conf.sh def CURSES $(CURSES)
-	./src-conf.sh set CURSES_INC "$(CURSES_INC)" $(CURSES)
-	./src-conf.sh set BACKEND ansi -z $(CURSES)$(ALLEGRO)
-	./src-conf.sh set BACKEND allegro $(ALLEGRO)
-	./src-conf.sh def ALLEGRO $(ALLEGRO)
-	./src-conf.sh def XLIB $(XLIB)
-	./src-conf.sh def TERM_RESIZING $(TERM_RESIZING)
-	./src-conf.sh def NO_MENU -z $(MENU)
-	./src-conf.sh lib menuext $(MENU)
-	./src-conf.sh def NO_BLOCKSTYLES -z $(BLOCKSTYLES)
-	./src-conf.sh lib netw $(NETWORK)
-	./src-conf.sh def SOCKET $(NETWORK)
-	./src-conf.sh def INET $(NETWORK)
-	./src-conf.sh obj inet $(NETWORK)
-	./src-conf.sh def TTY_SOCKET "$(NETWORK)" -a $(TTY_SOCKET)
-	./src-conf.sh obj tty_socket "$(NETWORK)" -a $(TTY_SOCKET)
-	./src-conf.sh set DHISCORE_FILENAME "-D'HISCORE_FILENAME=\"$(HISCORE_FILENAME)\"'" $(HISCORE_FILENAME)
-	./src-conf.sh def PCTIMER $(PCTIMER)
-	./src-conf.sh obj pctimer $(PCTIMER)
+hiscore.o: hiscore.c hiscore.h cfgfile.h lang.h game/tetris.h src-conf.mk
+	$(CC) $(CCFLAGS) -I. $(DHISCORE_FILENAME) -c hiscore.c 
 
-install: $(PROGNAME)
-	$(INSTALL) -d $(DESTDIR)$(bindir) $(DESTDIR)$(docdir)
-	$(INSTALL) -m755 $(PROGNAME) $(DESTDIR)$(bindir)
-	$(INSTALL) -m644 README licence.txt $(DESTDIR)$(docdir)
-	if [ -n "$(pixmapdir)" ]; then \
-  $(INSTALL) -d $(DESTDIR)$(pixmapdir) && \
-  $(INSTALL) -m644 vitetris.xpm $(DESTDIR)$(pixmapdir); fi
-	if [ -n "$(desktopdir)" ]; then \
-  $(INSTALL) -d $(DESTDIR)$(desktopdir) && \
-  $(INSTALL) -m644 vitetris.desktop $(DESTDIR)$(desktopdir); fi
-	if [ -n "$(ALLEGRO)" ]; then \
-  $(INSTALL) -d $(DESTDIR)$(datadir) && \
-  $(INSTALL) -m644 pc8x16.fnt $(DESTDIR)$(datadir); fi
-	@echo Done.
-	@echo You may also wish to create the system-wide highscore file
-	@echo 'with "make install-hiscores"'.
+lang.o: lang.c lang.h
 
-install-hiscores:
-	@HS_FN=$(HISCORE_FILENAME); \
-	if [ -z "$$HS_FN" ]; then HS_FN=/var/games/vitetris-hiscores; fi; \
-	HS_FN="$(DESTDIR)$$HS_FN"; \
-	echo $(INSTALL) -d $${HS_FN%/*};  $(INSTALL) -d "$${HS_FN%/*}" && \
-	echo touch $$HS_FN &&             touch "$$HS_FN" && \
-	echo chgrp games $$HS_FN &&       chgrp games "$$HS_FN" && \
-	echo chmod g+w $$HS_FN &&         chmod g+w "$$HS_FN"
+timer.o: timer.c timer.h pctimer.h config.h config2.h ../config.mk src-conf.mk
+	$(CC) $(CCFLAGS) $(DPCTIMER) $(PCTIMER_INC) $(DALLEGRO) -c timer.c
 
-uninstall:
-	rm -f $(bindir)/$(PROGNAME)
-	rm -f $(docdir)/README
-	rm -f $(docdir)/licence.txt
-	rmdir $(docdir)
-	test -z "$(pixmapdir)" || rm -f $(pixmapdir)/vitetris.xpm
-	-rmdir "$(pixmapdir)"
-	test -z "$(desktopdir)" || rm -f $(desktopdir)/vitetris.desktop
-	-rmdir "$(desktopdir)"
-	-rm -f $(datadir)/pc8x16.fnt
-	-rmdir $(datadir)
+pctimer.o: ../$(PCTIMER).c ../$(PCTIMER).h ../config.mk src-conf.mk
+	$(CC) $(CCFLAGS) $(PCTIMER_INC) -c -opctimer.o ../$(PCTIMER).c
+
+focus.o: focus.c focus.h ../config.mk src-conf.mk
+	$(CC) $(CCFLAGS) $(DXLIB) $(XLIB_INC) $(DALLEGRO) -c focus.c
+
+../icon.o: ../icon.rc
+	cd ..; windres icon.rc icon.o
+
+.c.o:
+	$(CC) $(CCFLAGS) -c $<
+
+libs: gamea menua netwa inputa drawa textgfxa
+	mv -f game/game.a .
+	mv -f menu/*.a .
+	-mv -f netw/netw.a .
+	mv -f input/input.a .
+	mv -f draw/draw.a .
+	mv -f textgfx/textgfx.a .
+
+gamea:
+	$(MAKE) -Cgame
+menua:
+	$(MAKE) -Cmenu
+netwa:
+	$(MAKE) -Cnetw
+inputa:
+	$(MAKE) -Cinput $(INPUT_SYS)
+drawa:
+	$(MAKE) -Cdraw
+textgfxa:
+	$(MAKE) -Ctextgfx
+
 clean:
-	rm -f systest systest.exe
-	cd src; $(MAKE) clean
+	rm -f tetris tetris.exe $(OBJS) pctimer.o
+	rm -f game.a menu.a menuext.a netw.a input.a draw.a textgfx.a
+	$(MAKE) -Cgame clean
+	$(MAKE) -Cmenu clean
+	$(MAKE) -Cnetw clean
+	$(MAKE) -Cinput clean
+	$(MAKE) -Cdraw clean
+	$(MAKE) -Ctextgfx clean
 
-.PHONY: default build install install-hiscores uninstall clean
+.PHONY: libs gamea menua netwa inputa drawa textgfxa clean
